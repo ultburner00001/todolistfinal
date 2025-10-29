@@ -1,50 +1,50 @@
-const express = require("express");
+import express from "express";
+import Todo from "../models/Todo.js";
+
 const router = express.Router();
-const jwt = require("jsonwebtoken");
-const Todo = require("../models/Todo");
 
-// ✅ Middleware to verify JWT
-const auth = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ msg: "No token" });
+// ➕ Create Todo
+router.post("/", async (req, res) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.id;
-    next();
-  } catch {
-    res.status(401).json({ msg: "Invalid token" });
+    const { title } = req.body;
+    const todo = new Todo({ title });
+    await todo.save();
+    res.status(201).json(todo);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
-};
-
-// ✅ Get all todos for logged-in user
-router.get("/", auth, async (req, res) => {
-  const todos = await Todo.find({ user: req.userId }).sort({ createdAt: -1 });
-  res.json(todos);
 });
 
-// ✅ Add new todo
-router.post("/", auth, async (req, res) => {
-  const { text, dueDate, category } = req.body;
-  const todo = new Todo({
-    text,
-    user: req.userId,
-    dueDate,
-    category,
-  });
-  await todo.save();
-  res.json(todo);
+// 📋 Get all Todos
+router.get("/", async (req, res) => {
+  try {
+    const todos = await Todo.find();
+    res.json(todos);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// ✅ Update todo
-router.put("/:id", auth, async (req, res) => {
-  const updated = await Todo.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  res.json(updated);
+// ✅ Toggle Complete
+router.put("/:id", async (req, res) => {
+  try {
+    const todo = await Todo.findById(req.params.id);
+    todo.completed = !todo.completed;
+    await todo.save();
+    res.json(todo);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// ✅ Delete todo
-router.delete("/:id", auth, async (req, res) => {
-  await Todo.findByIdAndDelete(req.params.id);
-  res.json({ msg: "Deleted" });
+// ❌ Delete Todo
+router.delete("/:id", async (req, res) => {
+  try {
+    await Todo.findByIdAndDelete(req.params.id);
+    res.json({ message: "Todo deleted" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-module.exports = router;
+export default router;
