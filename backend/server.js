@@ -22,7 +22,7 @@ mongoose
   .catch((err) => console.error("❌ MongoDB Error:", err));
 
 // ✅ Import Routes
-import todoRoutes from "./routes/todo.js";
+import todoRoutes from "./routes/todos.js";
 app.use("/api/todos", todoRoutes);
 
 // ✅ Serve React Frontend in Production
