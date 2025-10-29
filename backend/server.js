@@ -1,42 +1,32 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const dotenv = require("dotenv");
-const todoRoutes = require("./routes/todos");
-const userRoutes = require("./routes/users");
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
-
-// ✅ Middleware
 app.use(express.json());
-app.use(
-  cors({
-    origin:[
-      "http://localhost:3000",
-    "https://todo-frontend-xxxx.vercel.app"
-      ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
+app.use(cors());
 
-// ✅ Connect to MongoDB
+// ✅ MongoDB Connection
 mongoose
-  .connect(process.env.MONGO_URI, {
+  .connect(process.env.MONGO_URI || "your_backup_mongo_uri", {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.error("❌ Mongo Error:", err));
+  .catch((err) => console.error("❌ MongoDB Error:", err));
 
-// ✅ Routes
-app.use("/todos", todoRoutes);
-app.use("/users", userRoutes);
+// ✅ Import Routes
+import todoRoutes from "./routes/todo.js";
+app.use("/api/todos", todoRoutes);
 
-// ✅ Root
-app.get("/", (req, res) => res.send("🚀 API Running..."));
+// ✅ Default route
+app.get("/", (req, res) => {
+  res.send("To-Do Backend is running successfully 🚀");
+});
 
+// ✅ Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`✅ Server on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
