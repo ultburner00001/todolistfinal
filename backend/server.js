@@ -5,19 +5,35 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// ✅ Load environment variables
+// ✅ Load environment variables from .env
 dotenv.config();
 
+// ✅ Initialize app
 const app = express();
+
+// ✅ Middleware
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173", // Local development
+      "https://todo-frontend.vercel.app", // ⬅️ Replace with your actual Vercel frontend URL
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
 
 // ✅ MongoDB Connection
+const mongoURI = process.env.MONGO_URI;
+
+if (!mongoURI) {
+  console.error("❌ MONGO_URI not found in environment variables!");
+  process.exit(1);
+}
+
 mongoose
-  .connect(process.env.MONGO_URI || "your_backup_mongo_uri", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(mongoURI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.error("❌ MongoDB Error:", err));
 
@@ -25,25 +41,28 @@ mongoose
 import todoRoutes from "./routes/todos.js";
 app.use("/api/todos", todoRoutes);
 
-// ✅ Serve React Frontend in Production
+// ✅ Handle undefined routes gracefully
+app.get("/api", (req, res) => {
+  res.send("✅ To-Do API is live and working!");
+});
+
+// ✅ Serve React Frontend in Production (Render setup)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 if (process.env.NODE_ENV === "production") {
-  // Serve the static files from the React app
-  app.use(express.static(path.join(__dirname, "../frontend/build")));
+  const frontendPath = path.join(__dirname, "../frontend/dist"); // Vite/React build folder
+  app.use(express.static(frontendPath));
 
-  // Handle all other routes and send back index.html
-  app.get("*", (req, res) =>
-    res.sendFile(path.resolve(__dirname, "../frontend/build", "index.html"))
-  );
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(frontendPath, "index.html"));
+  });
 } else {
-  // ✅ Default route for development
   app.get("/", (req, res) => {
-    res.send("To-Do Backend is running successfully 🚀");
+    res.send("🚀 To-Do Backend is running in development mode!");
   });
 }
 
-// ✅ Start Server
+// ✅ Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
