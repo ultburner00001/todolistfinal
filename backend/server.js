@@ -16,8 +16,8 @@ app.use(express.json());
 app.use(
   cors({
     origin: [
-      "http://localhost:5173", // local development
-      "https://todolist-git-main-mehul-swamis-projects.vercel.app", // your actual frontend URL
+      "http://localhost:5173", // local dev
+      "https://todolist-git-main-mehul-swamis-projects.vercel.app", // your deployed frontend
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
@@ -27,7 +27,7 @@ app.use(
 // ✅ MongoDB Connection
 const mongoURI = process.env.MONGO_URI;
 if (!mongoURI) {
-  console.error("❌ MONGO_URI is missing from environment variables!");
+  console.error("❌ MONGO_URI missing!");
   process.exit(1);
 }
 
@@ -36,12 +36,26 @@ mongoose
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.error("❌ MongoDB Error:", err));
 
-// ✅ Define User Model (inline)
+// ✅ Define User Model
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
 });
 const User = mongoose.model("User", userSchema);
+
+// ✅ Middleware to verify JWT
+function auth(req, res, next) {
+  const token = req.header("Authorization")?.replace("Bearer ", "");
+  if (!token) return res.status(401).json({ msg: "No token, authorization denied" });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey");
+    req.user = decoded.id;
+    next();
+  } catch (err) {
+    res.status(401).json({ msg: "Invalid token" });
+  }
+}
 
 // ✅ Register Route
 app.post("/users/register", async (req, res) => {
@@ -84,9 +98,9 @@ app.post("/users/login", async (req, res) => {
   }
 });
 
-// ✅ Import Todo Routes
+// ✅ Import Todo Routes (Protected)
 import todoRoutes from "./routes/todos.js";
-app.use("/api/todos", todoRoutes);
+app.use("/api/todos", auth, todoRoutes);
 
 // ✅ Default route
 app.get("/", (req, res) => {
@@ -96,4 +110,3 @@ app.get("/", (req, res) => {
 // ✅ Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
