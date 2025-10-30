@@ -15,7 +15,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173", // for local development
-      "https://todo-frontend.vercel.app", // ⬅️ replace with your actual Vercel URL
+      "https://todolist-git-main-mehul-swamis-projects.vercel.app", // ⬅️ replace with your actual Vercel URL
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
