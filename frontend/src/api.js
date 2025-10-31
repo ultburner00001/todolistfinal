@@ -1,10 +1,7 @@
 // src/api.js
 import axios from "axios";
 
-/* 🌍 MULTI-ENVIRONMENT CONFIGURATION
-   --------------------------------------
-   Easily switch between environments by editing ACTIVE_ENV.
-*/
+/* 🌍 MULTI-ENVIRONMENT CONFIGURATION */
 const ENV_LINKS = {
   local: "http://localhost:5000",
   render: "https://todolistfinal-6ou5.onrender.com",
@@ -12,12 +9,10 @@ const ENV_LINKS = {
 };
 
 // 👇 Choose which environment to use
-const ACTIVE_ENV = "render"; // change to "render" or "vercel" when deployed
+const ACTIVE_ENV = "render"; // change to "vercel" when needed
 
 // ✅ Pick base URL safely
 let BASE_URL = ENV_LINKS[ACTIVE_ENV];
-
-// ✅ Allow .env variable override (CRA uses REACT_APP_ prefix)
 if (process.env.REACT_APP_API_URL) {
   BASE_URL = process.env.REACT_APP_API_URL;
 }
@@ -25,12 +20,19 @@ if (process.env.REACT_APP_API_URL) {
 // ✅ Create axios instance
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
 
-// ✅ Token helper
+/* ✅ Automatically attach token to every request */
+axiosInstance.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token"); // get saved JWT
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+/* ✅ Helper to manually set or clear token (optional use) */
 export function setAuthToken(token) {
   if (token) {
     axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
