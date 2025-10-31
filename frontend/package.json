@@ -2,7 +2,7 @@
   "name": "mern-todo-frontend",
   "version": "1.0.0",
   "private": true,
-  "proxy": "http://localhost:5000",
+  "proxy": "https://todolistfinal-6ou5.onrender.com",
   "dependencies": {
     "@stripe/stripe-js": "^8.2.0",
     "axios": "^1.13.0",
