@@ -1,363 +1,201 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import axiosInstance, { setAuthToken } from "../api";
 import TodoItem from "../components/TodoItem";
+import { useNavigate } from "react-router-dom";
+import { loadStripe } from "@stripe/stripe-js";
 
-export default function Home({ token, setToken }) {
+// Initialize Stripe with your publishable key
+const stripePromise = loadStripe("pk_test_XXXXXXXXXXXXXXXXXXXXXXXX");
+
+export default function Home({ token, onLogout }) {
   const [todos, setTodos] = useState([]);
-  const [task, setTask] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [showPayment, setShowPayment] = useState(false);
-  const [cardDetails, setCardDetails] = useState({
-    name: "",
-    cardNumber: "",
-    expiry: "",
-    cvv: "",
-  });
-
-  const api = axios.create({
-    baseURL: "/api",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  const fetchTodos = async () => {
-    try {
-      const res = await api.get("/todos");
-      setTodos(res.data);
-    } catch (err) {
-      console.error("Error fetching todos:", err);
-    }
-  };
+  const [text, setText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setAuthToken(token);
     fetchTodos();
-  }, []);
+    // eslint-disable-next-line
+  }, [token]);
 
-  const addTodo = async (e) => {
-    e.preventDefault();
-    if (!task.trim()) return;
+  // Fetch user's todos
+  const fetchTodos = async () => {
     try {
-      await api.post("/todos", { text: task, dueDate });
-      setTask("");
-      setDueDate("");
-      fetchTodos();
+      const res = await axiosInstance.get("/api/todos");
+      setTodos(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error("Error adding todo:", err);
+      console.error(err);
+      if (err.response?.status === 401) handleLogout();
     }
   };
 
-  const logout = () => {
-    setToken(null);
-    localStorage.removeItem("token");
+  // Add new todo
+  const addTodo = async (e) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    try {
+      const res = await axiosInstance.post("/api/todos", { text });
+      setTodos((p) => [...p, res.data]);
+      setText("");
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.msg || "Failed to add todo");
+    }
   };
 
-  // 💳 Mock Payment Submit
-  const handlePaymentSubmit = (e) => {
-    e.preventDefault();
-    setShowPayment(false);
-    alert("✅ Payment successful! You are now a Premium User!");
-    setCardDetails({ name: "", cardNumber: "", expiry: "", cvv: "" });
+  // Toggle completed
+  const toggleTodo = async (id, completed) => {
+    try {
+      const res = await axiosInstance.put(`/api/todos/${id}`, { completed });
+      setTodos((p) => p.map((t) => (t._id === id ? res.data : t)));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Delete todo
+  const deleteTodo = async (id) => {
+    try {
+      await axiosInstance.delete(`/api/todos/${id}`);
+      setTodos((p) => p.filter((t) => t._id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Logout user
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    setAuthToken(null);
+    onLogout();
+    navigate("/login");
+  };
+
+  // 🔹 Handle Stripe payment
+  const handleUpgrade = async () => {
+    try {
+      setIsLoading(true);
+      const userToken = localStorage.getItem("token");
+      if (!userToken) {
+        alert("Please log in first.");
+        navigate("/login");
+        return;
+      }
+
+      // Decode userId from JWT token
+      const payload = JSON.parse(atob(userToken.split(".")[1]));
+      const userId = payload.id;
+
+      const res = await axiosInstance.post("/api/payment/create-checkout-session", {
+        userId,
+      });
+
+      const stripe = await stripePromise;
+      window.location.href = res.data.url; // redirect to Stripe Checkout
+    } catch (err) {
+      console.error("Payment error:", err);
+      alert("Payment failed. Try again later.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #1100fff0, #ff0000ff)",
-        color: "#fff",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        fontFamily: "'Poppins', sans-serif",
-        padding: "40px 20px",
-      }}
-    >
-      <h1 style={{ marginBottom: "10px", letterSpacing: "1px" }}>🎓 Taskify</h1>
-      <p style={{ opacity: 0.8 }}>Stay organized and manage deadlines efficiently</p>
-
-      {/* 🔹 Legend */}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          margin: "20px 0",
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
-      >
-        {[
-          { color: "#ffb3b3", label: "Due in ≤3 days" },
-          { color: "#ffd699", label: "Due in ≤7 days" },
-          { color: "#ffff99", label: "Due in ≤10 days" },
-          { color: "#b3ffb3", label: "Due in >10 days" },
-        ].map((legend, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              background: "rgba(255,255,255,0.15)",
-              borderRadius: "8px",
-              padding: "6px 10px",
-            }}
-          >
-            <div
-              style={{
-                width: "15px",
-                height: "15px",
-                background: legend.color,
-                borderRadius: "4px",
-                marginRight: "8px",
-              }}
-            ></div>
-            <span style={{ fontSize: "0.9em" }}>{legend.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* 🔹 Add Task */}
-      <form
-        onSubmit={addTodo}
-        style={{
-          display: "flex",
-          gap: "10px",
-          marginBottom: "25px",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          width: "100%",
-          maxWidth: "600px",
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Enter a new task..."
-          value={task}
-          onChange={(e) => setTask(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: "250px",
-            padding: "10px",
-            borderRadius: "8px",
-            border: "none",
-            outline: "none",
-            background: "rgba(255,255,255,0.9)",
-          }}
-        />
-        <input
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          style={{
-            padding: "10px",
-            borderRadius: "8px",
-            border: "none",
-            outline: "none",
-            background: "rgba(255,255,255,0.9)",
-          }}
-        />
-        <button
-          type="submit"
-          style={{
-            background: "#ff7eb3",
-            color: "#fff",
-            border: "none",
-            borderRadius: "8px",
-            padding: "10px 20px",
-            cursor: "pointer",
-            fontWeight: "600",
-            transition: "0.3s",
-          }}
-          onMouseOver={(e) => (e.target.style.background = "#ff4d97")}
-          onMouseOut={(e) => (e.target.style.background = "#ff7eb3")}
-        >
-          ➕ Add
-        </button>
-      </form>
-
-      {/* 🔹 Todo List */}
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "600px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-        }}
-      >
-        {todos.length === 0 ? (
-          <p style={{ textAlign: "center", opacity: 0.8 }}>No tasks yet 🎉</p>
-        ) : (
-          todos.map((todo) => (
-            <TodoItem key={todo._id} todo={todo} refresh={fetchTodos} api={api} />
-          ))
-        )}
-      </div>
-
-      {/* 💎 Upgrade to Premium */}
-      <div style={{ textAlign: "center", marginTop: 30 }}>
-        <button
-          onClick={() => setShowPayment(true)}
-          style={{
-            background: "linear-gradient(90deg, #6C63FF, #8A2BE2)",
-            color: "#fff",
-            padding: "12px 25px",
-            borderRadius: "8px",
-            border: "none",
-            fontSize: "16px",
-            cursor: "pointer",
-            fontWeight: "600",
-            transition: "0.3s ease",
-            boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-          }}
-          onMouseOver={(e) => (e.target.style.opacity = "0.8")}
-          onMouseOut={(e) => (e.target.style.opacity = "1")}
-        >
-          💎 Upgrade to Premium
-        </button>
-      </div>
-
-      {/* 💳 Mock Payment Modal */}
-      {showPayment && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            background: "rgba(0,0,0,0.7)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: "#fff",
-              color: "#333",
-              padding: "30px",
-              borderRadius: "12px",
-              width: "90%",
-              maxWidth: "400px",
-              boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
-            }}
-          >
-            <h2 style={{ marginBottom: 15, textAlign: "center" }}>
-              💳 Enter Payment Details
-            </h2>
-            <form onSubmit={handlePaymentSubmit}>
-              <input
-                type="text"
-                placeholder="Cardholder Name"
-                required
-                value={cardDetails.name}
-                onChange={(e) =>
-                  setCardDetails({ ...cardDetails, name: e.target.value })
-                }
-                style={inputStyle}
-              />
-              <input
-                type="text"
-                placeholder="Card Number"
-                required
-                value={cardDetails.cardNumber}
-                onChange={(e) =>
-                  setCardDetails({ ...cardDetails, cardNumber: e.target.value })
-                }
-                style={inputStyle}
-              />
-              <div style={{ display: "flex", gap: "10px" }}>
-                <input
-                  type="text"
-                  placeholder="MM/YY"
-                  required
-                  value={cardDetails.expiry}
-                  onChange={(e) =>
-                    setCardDetails({ ...cardDetails, expiry: e.target.value })
-                  }
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-                <input
-                  type="password"
-                  placeholder="CVV"
-                  required
-                  value={cardDetails.cvv}
-                  onChange={(e) =>
-                    setCardDetails({ ...cardDetails, cvv: e.target.value })
-                  }
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-              </div>
-              <div style={{ textAlign: "center", marginTop: 20 }}>
-                <button type="submit" style={submitBtn}>
-                  Submit Payment
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPayment(false)}
-                  style={cancelBtn}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
+    <div style={styles.page}>
+      <header style={styles.header}>
+        <h2>Taskify — Welcome {localStorage.getItem("username") || ""}</h2>
+        <div style={styles.headerButtons}>
+          <button onClick={handleUpgrade} style={styles.upgradeBtn} disabled={isLoading}>
+            {isLoading ? "Processing..." : "💎 Upgrade to Premium"}
+          </button>
+          <button onClick={handleLogout} style={styles.logout}>
+            Logout
+          </button>
         </div>
-      )}
+      </header>
 
-      {/* 🔹 Logout */}
-      <div style={{ display: "flex", justifyContent: "center", marginTop: "35px" }}>
-        <button
-          onClick={logout}
-          style={{
-            background: "rgba(255,255,255,0.25)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "50px",
-            padding: "8px 18px",
-            cursor: "pointer",
-            fontWeight: "600",
-            fontSize: "0.95rem",
-            letterSpacing: "0.5px",
-            transition: "all 0.2s ease",
-            boxShadow: "0 3px 6px rgba(0,0,0,0.2)",
-          }}
-          onMouseOver={(e) => (e.target.style.transform = "scale(1.08)")}
-          onMouseOut={(e) => (e.target.style.transform = "scale(1)")}
-        >
-          Logout
-        </button>
-      </div>
+      <main style={styles.container}>
+        <form onSubmit={addTodo} style={styles.form}>
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Add a new task..."
+            style={styles.input}
+          />
+          <button type="submit" style={styles.addBtn}>
+            Add
+          </button>
+        </form>
+
+        <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          {todos.length === 0 ? (
+            <p style={{ opacity: 0.8 }}>No tasks yet</p>
+          ) : (
+            todos.map((todo) => (
+              <TodoItem key={todo._id} todo={todo} onToggle={toggleTodo} onDelete={deleteTodo} />
+            ))
+          )}
+        </div>
+      </main>
     </div>
   );
 }
 
-const inputStyle = {
-  width: "100%",
-  marginBottom: "10px",
-  padding: "10px",
-  borderRadius: "6px",
-  border: "1px solid #ccc",
-  outline: "none",
-};
-
-const submitBtn = {
-  background: "#6C63FF",
-  color: "#fff",
-  border: "none",
-  padding: "10px 20px",
-  borderRadius: "6px",
-  cursor: "pointer",
-  fontWeight: "600",
-  marginRight: "10px",
-};
-
-const cancelBtn = {
-  background: "#ddd",
-  color: "#333",
-  border: "none",
-  padding: "10px 20px",
-  borderRadius: "6px",
-  cursor: "pointer",
-  fontWeight: "600",
+const styles = {
+  page: {
+    minHeight: "100vh",
+    padding: 24,
+    fontFamily: "'Poppins', sans-serif",
+    background: "#0b1020",
+    color: "#fff",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerButtons: {
+    display: "flex",
+    gap: "10px",
+  },
+  logout: {
+    background: "transparent",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#fff",
+    padding: "6px 10px",
+    borderRadius: 8,
+    cursor: "pointer",
+  },
+  upgradeBtn: {
+    background: "linear-gradient(90deg, #6C63FF, #8A2BE2)",
+    border: "none",
+    color: "#fff",
+    padding: "8px 14px",
+    borderRadius: 8,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  container: { maxWidth: 720, margin: "28px auto" },
+  form: { display: "flex", gap: 8 },
+  input: {
+    flex: 1,
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "none",
+    outline: "none",
+  },
+  addBtn: {
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: "none",
+    background: "#4B7CFF",
+    color: "#fff",
+    cursor: "pointer",
+  },
 };

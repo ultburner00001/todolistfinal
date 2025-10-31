@@ -1,74 +1,52 @@
 import express from "express";
-import mongoose from "mongoose";
-import auth from "../middleware/auth.js"; // ✅ add this line
+import jwt from "jsonwebtoken";
+import Todo from "../models/Todo.js";
+import dotenv from "dotenv";
 
+dotenv.config();
 const router = express.Router();
 
-// ✅ Define Todo model
-const todoSchema = new mongoose.Schema({
-  text: { type: String, required: true },
-  completed: { type: Boolean, default: false },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  dueDate: { type: Date },
+// ✅ Auth middleware
+function auth(req, res, next) {
+  const token = req.header("Authorization")?.replace("Bearer ", "");
+  if (!token) return res.status(401).json({ msg: "No token provided" });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = decoded.id;
+    next();
+  } catch {
+    return res.status(401).json({ msg: "Invalid token" });
+  }
+}
+
+// ✅ Get all todos for logged-in user
+router.get("/", auth, async (req, res) => {
+  const todos = await Todo.find({ userId: req.userId });
+  res.json(todos);
 });
 
-const Todo = mongoose.model("Todo", todoSchema);
-
-// ✅ Apply auth middleware to all todo routes
-router.use(auth);
-
-// ✅ Get all todos for the logged-in user
-router.get("/", async (req, res) => {
-  try {
-    const todos = await Todo.find({ userId: req.user });
-    res.json(todos);
-  } catch (err) {
-    res.status(500).json({ msg: "Server error while fetching todos" });
-  }
-});
-
-// ✅ Add new todo
-router.post("/", async (req, res) => {
-  try {
-    const newTodo = new Todo({
-      text: req.body.text,
-      dueDate: req.body.dueDate,
-      userId: req.user, // taken from the token
-    });
-    await newTodo.save();
-    res.json(newTodo);
-  } catch (err) {
-    res.status(500).json({ msg: "Error creating todo" });
-  }
+// ✅ Add todo
+router.post("/", auth, async (req, res) => {
+  const { text } = req.body;
+  const todo = new Todo({ text, userId: req.userId });
+  await todo.save();
+  res.json(todo);
 });
 
 // ✅ Update todo
-router.put("/:id", async (req, res) => {
-  try {
-    const todo = await Todo.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user },
-      req.body,
-      { new: true }
-    );
-    if (!todo) return res.status(404).json({ msg: "Todo not found" });
-    res.json(todo);
-  } catch (err) {
-    res.status(500).json({ msg: "Error updating todo" });
-  }
+router.put("/:id", auth, async (req, res) => {
+  const todo = await Todo.findOneAndUpdate(
+    { _id: req.params.id, userId: req.userId },
+    req.body,
+    { new: true }
+  );
+  res.json(todo);
 });
 
 // ✅ Delete todo
-router.delete("/:id", async (req, res) => {
-  try {
-    const deleted = await Todo.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user,
-    });
-    if (!deleted) return res.status(404).json({ msg: "Todo not found" });
-    res.json({ msg: "Todo deleted successfully" });
-  } catch (err) {
-    res.status(500).json({ msg: "Error deleting todo" });
-  }
+router.delete("/:id", auth, async (req, res) => {
+  await Todo.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+  res.json({ msg: "Todo deleted" });
 });
 
 export default router;

@@ -1,155 +1,153 @@
+// src/pages/LoginRegister.js
 import React, { useState } from "react";
-import axios from "axios";
+import axiosInstance, { setAuthToken } from "../api";
+import { useNavigate } from "react-router-dom";
 
-export default function LoginRegister({ setToken }) {
+export default function LoginRegister({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
-  const API = process.env.REACT_APP_API_URL;
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
     try {
-      const endpoint = isLogin ? "/users/login" : "/users/register";
-      const res = await axios.post(`${API}${endpoint}`, { username, password });
+      // ✅ Ensure correct API route
+      const path = isLogin ? "/api/users/login" : "/api/users/register";
+      const url = `${axiosInstance.defaults.baseURL}${path}`;
+
+      console.log("📡 Sending request to:", url);
+
+      const res = await axiosInstance.post(path, { username, password });
+
       if (isLogin) {
-        localStorage.setItem("token", res.data.token);
-        setToken(res.data.token);
+        const { token, username: resUsername } = res.data || {};
+
+        if (!token) throw new Error("No token received from server");
+
+        // ✅ Save user session
+        localStorage.setItem("token", token);
+        localStorage.setItem("username", resUsername || username);
+
+        // ✅ Set global Authorization header
+        setAuthToken(token);
+
+        // ✅ Notify parent (App.js)
+        onLogin(token);
+
+        // ✅ Redirect to home
+        navigate("/");
       } else {
-        alert("🎉 Registration successful! Please log in.");
+        alert("✅ Registration successful — please log in now.");
         setIsLogin(true);
+        setUsername("");
+        setPassword("");
       }
     } catch (err) {
-      alert(err.response?.data?.msg || "⚠️ Something went wrong!");
+      console.error("❌ Login/Register error:", err);
+
+      const msg =
+        err.response?.data?.msg ||
+        err.response?.data?.error ||
+        (err.message.includes("Network Error")
+          ? "Backend server is offline. Please start it with: npm start"
+          : err.message);
+
+      alert(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        background: "linear-gradient(135deg, #1100fff0, #ff0000ff)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        fontFamily: "'Poppins', sans-serif",
-      }}
-    >
-      <div
-        style={{
-          background: "rgba(255, 255, 255, 0.15)",
-          backdropFilter: "blur(10px)",
-          borderRadius: "20px",
-          padding: "40px 50px",
-          width: "350px",
-          boxShadow: "0 8px 20px rgba(0,0,0,0.2)",
-          color: "#fff",
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ marginBottom: "10px", fontSize: "2rem", letterSpacing: "1px" }}>
-           Taskify
-        </h1>
-        <p style={{ fontSize: "0.9rem", opacity: 0.8, marginBottom: "25px" }}>
-          {isLogin ? "Welcome back, champ!" : "Let’s get you started "}
-        </p>
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <h2>{isLogin ? "Login" : "Register"}</h2>
 
-        <h2 style={{ marginBottom: "20px" }}>
-          {isLogin ? "Login to Continue" : "Create Your Account"}
-        </h2>
-
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column" }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+        >
           <input
+            placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="👤 Username"
             required
-            style={{
-              padding: "10px",
-              marginBottom: "15px",
-              borderRadius: "8px",
-              border: "none",
-              outline: "none",
-              background: "rgba(255,255,255,0.2)",
-              color: "#fff",
-              fontSize: "1rem",
-            }}
+            style={styles.input}
           />
-
-          <div style={{ position: "relative", marginBottom: "15px" }}>
-            <input
-              type={showPass ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="🔒 Password"
-              required
-              style={{
-                padding: "10px",
-                width: "100%",
-                borderRadius: "8px",
-                border: "none",
-                outline: "none",
-                background: "rgba(255,255,255,0.2)",
-                color: "#fff",
-                fontSize: "1rem",
-              }}
-            />
-            <span
-              onClick={() => setShowPass(!showPass)}
-              style={{
-                position: "absolute",
-                right: "10px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                cursor: "pointer",
-                fontSize: "1.1rem",
-                opacity: 0.8,
-              }}
-            >
-              {showPass ? "🙈" : "👁️"}
-            </span>
-          </div>
-
+          <input
+            placeholder="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={styles.input}
+          />
           <button
             type="submit"
             style={{
-              background: "#ff9f43",
-              border: "none",
-              padding: "10px",
-              borderRadius: "8px",
-              color: "#fff",
-              fontWeight: "bold",
-              cursor: "pointer",
-              fontSize: "1rem",
-              transition: "0.2s",
+              ...styles.button,
+              opacity: loading ? 0.6 : 1,
+              cursor: loading ? "not-allowed" : "pointer",
             }}
-            onMouseOver={(e) => (e.target.style.background = "#ff7849")}
-            onMouseOut={(e) => (e.target.style.background = "#ff9f43")}
+            disabled={loading}
           >
-            {isLogin ? "Login 🚀" : "Register 📝"}
+            {loading ? "Please wait..." : isLogin ? "Login" : "Register"}
           </button>
         </form>
 
-        <p
-          onClick={() => setIsLogin(!isLogin)}
-          style={{
-            cursor: "pointer",
-            color: "#fff",
-            marginTop: "20px",
-            textDecoration: "underline",
-            fontSize: "0.9rem",
-          }}
-        >
-          {isLogin
-            ? "Don’t have an account? Create one!"
-            : "Already registered? Log in!"}
-        </p>
-
-        <p style={{ fontSize: "0.8rem", marginTop: "20px", opacity: 0.8 }}>
-          💡 Stay organized. Stay ahead.
+        <p style={{ marginTop: 12 }}>
+          {isLogin ? "Don't have an account? " : "Already have an account? "}
+          <span
+            onClick={() => setIsLogin(!isLogin)}
+            style={{
+              color: "#e5ff00ff",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            {isLogin ? "Register" : "Login"}
+          </span>
         </p>
       </div>
     </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "linear-gradient(135deg,#0ea5e9,#7c3aed)",
+    color: "#fff",
+    fontFamily: "'Poppins', sans-serif",
+  },
+  card: {
+    background: "rgba(255,255,255,0.08)",
+    padding: 24,
+    borderRadius: 10,
+    width: 360,
+    textAlign: "center",
+    boxShadow: "0 8px 30px rgba(0,0,0,0.25)",
+  },
+  input: {
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "none",
+    outline: "none",
+  },
+  button: {
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "none",
+    background: "#00ff4cff",
+    color: "#fff",
+    fontWeight: 600,
+    transition: "0.2s",
+  },
+};

@@ -1,25 +1,31 @@
-const express = require("express");
-const router = express.Router();
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
-const User = require("../models/User");
+import express from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import User from "../models/User.js";
 
-// Register
+dotenv.config();
+const router = express.Router();
+
+// ✅ Register
 router.post("/register", async (req, res) => {
   try {
     const { username, password } = req.body;
     const existing = await User.findOne({ username });
-    if (existing) return res.status(400).json({ msg: "User exists" });
+    if (existing) return res.status(400).json({ msg: "User already exists" });
 
-    const user = new User({ username, password });
+    const hashed = await bcrypt.hash(password, 10);
+    const user = new User({ username, password: hashed });
     await user.save();
-    res.json({ msg: "Registered successfully" });
+
+    res.status(201).json({ msg: "User registered successfully" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Register error:", err);
+    res.status(500).json({ msg: "Server error during registration" });
   }
 });
 
-// Login
+// ✅ Login
 router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -29,11 +35,15 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid password" });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-    res.json({ token });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.json({ token, username: user.username });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Login error:", err);
+    res.status(500).json({ msg: "Server error during login" });
   }
 });
 
-module.exports = router;
+export default router;
