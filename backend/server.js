@@ -22,7 +22,7 @@ app.use(
     origin: [
       "http://localhost:5173", // local dev frontend (Vite)
       "http://localhost:3000", // local dev (CRA)
-      "https://todolistfinal1.vercel.app/", // deployed frontend
+      "https://todolistfinal1.vercel.app", // deployed frontend
       "https://todolistfinal1-git-main-ultburners-projects.vercel.app",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
