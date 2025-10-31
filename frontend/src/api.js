@@ -3,25 +3,23 @@ import axios from "axios";
 
 /* 🌍 MULTI-ENVIRONMENT CONFIGURATION
    --------------------------------------
-   You can add multiple base URLs here.
-   Simply change ACTIVE_ENV to switch environments.
+   Easily switch between environments by editing ACTIVE_ENV.
 */
 const ENV_LINKS = {
   local: "http://localhost:5000",
   render: "https://todo-51ze.onrender.com",
-  vercel: "https://todolist-git-main-mehul-swamis-projects.vercel.app/api",
+  vercel: "https://todolist-git-main-mehul-swamis-projects.vercel.app",
 };
 
-// 👇 Choose which one to use
-const ACTIVE_ENV = "local"; // "local" | "render" | "vercel"
+// 👇 Choose which environment to use
+const ACTIVE_ENV = "local"; // change to "render" or "vercel" when deployed
 
 // ✅ Pick base URL safely
-let BASE_URL = "http://localhost:5000"; // default fallback
-try {
-  const envURL = process?.env?.REACT_APP_API_URL;
-  BASE_URL = envURL || ENV_LINKS[ACTIVE_ENV] || BASE_URL;
-} catch (err) {
-  console.warn("⚠️ Failed to read environment, using default localhost.");
+let BASE_URL = ENV_LINKS[ACTIVE_ENV];
+
+// ✅ Allow .env variable override (CRA uses REACT_APP_ prefix)
+if (process.env.REACT_APP_API_URL) {
+  BASE_URL = process.env.REACT_APP_API_URL;
 }
 
 // ✅ Create axios instance
