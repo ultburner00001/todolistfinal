@@ -1,3 +1,4 @@
+// backend/routes/todos.js
 import express from "express";
 import jwt from "jsonwebtoken";
 import Todo from "../models/Todo.js";
@@ -6,7 +7,7 @@ import dotenv from "dotenv";
 dotenv.config();
 const router = express.Router();
 
-/* ---------------- AUTH MIDDLEWARE ---------------- */
+// ✅ Auth middleware
 function auth(req, res, next) {
   const token = req.header("Authorization")?.replace("Bearer ", "");
   if (!token) return res.status(401).json({ msg: "No token provided" });
@@ -15,36 +16,31 @@ function auth(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = decoded.id;
     next();
-  } catch (err) {
-    console.error("JWT verification error:", err);
+  } catch {
     return res.status(401).json({ msg: "Invalid token" });
   }
 }
 
-/* ---------------- GET ALL TODOS ---------------- */
+// ✅ Get all todos for logged-in user
 router.get("/", auth, async (req, res) => {
   try {
     const todos = await Todo.find({ userId: req.userId });
     res.json(todos);
   } catch (err) {
-    console.error("Fetch todos error:", err);
-    res.status(500).json({ error: "Server error" });
+    console.error("Get todos error:", err);
+    res.status(500).json({ error: "Failed to fetch todos" });
   }
 });
 
-/* ---------------- ADD NEW TODO ---------------- */
+// ✅ Add new todo (must be logged in)
 router.post("/", auth, async (req, res) => {
   try {
     const { text, completed, dueDate } = req.body;
 
-    if (!text) {
-      return res.status(400).json({ error: "Task text is required" });
-    }
-
     const newTodo = new Todo({
       text,
       completed: completed || false,
-      userId: req.userId, // ✅ userId now comes from token
+      userId: req.userId, // ✅ now added automatically from token
       dueDate: dueDate ? new Date(dueDate) : null,
     });
 
@@ -52,11 +48,11 @@ router.post("/", auth, async (req, res) => {
     res.status(201).json(newTodo);
   } catch (err) {
     console.error("Add todo error:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error while creating todo" });
   }
 });
 
-/* ---------------- UPDATE TODO ---------------- */
+// ✅ Update todo
 router.put("/:id", auth, async (req, res) => {
   try {
     const todo = await Todo.findOneAndUpdate(
@@ -68,19 +64,24 @@ router.put("/:id", auth, async (req, res) => {
     res.json(todo);
   } catch (err) {
     console.error("Update todo error:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Failed to update todo" });
   }
 });
 
-/* ---------------- DELETE TODO ---------------- */
+// ✅ Delete todo
 router.delete("/:id", auth, async (req, res) => {
   try {
-    await Todo.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+    const todo = await Todo.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.userId,
+    });
+    if (!todo) return res.status(404).json({ error: "Todo not found" });
     res.json({ msg: "Todo deleted" });
   } catch (err) {
     console.error("Delete todo error:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Failed to delete todo" });
   }
 });
 
 export default router;
+
