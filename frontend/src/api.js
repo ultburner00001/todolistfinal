@@ -12,7 +12,7 @@ const ENV_LINKS = {
 };
 
 // 👇 Choose which environment to use
-const ACTIVE_ENV = "vercel"; // change to "render" or "vercel" when deployed
+const ACTIVE_ENV = "render"; // change to "render" or "vercel" when deployed
 
 // ✅ Pick base URL safely
 let BASE_URL = ENV_LINKS[ACTIVE_ENV];
