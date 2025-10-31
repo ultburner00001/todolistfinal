@@ -8,11 +8,11 @@ import axios from "axios";
 const ENV_LINKS = {
   local: "http://localhost:5000",
   render: "https://todolistfinal-6ou5.onrender.com",
-  vercel: "https://todolist-git-main-mehul-swamis-projects.vercel.app",
+  vercel: "https://todolistfinal1-git-main-ultburners-projects.vercel.app",
 };
 
 // 👇 Choose which environment to use
-const ACTIVE_ENV = "local"; // change to "render" or "vercel" when deployed
+const ACTIVE_ENV = "vercel"; // change to "render" or "vercel" when deployed
 
 // ✅ Pick base URL safely
 let BASE_URL = ENV_LINKS[ACTIVE_ENV];
